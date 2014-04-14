@@ -31,7 +31,8 @@ namespace WASAPI_Audio
         private void StartAudio_Tap(object sender, System.Windows.Input.GestureEventArgs e)
         {
             AudioLoop.startThread();
-            this.Output.Text = "Thread Started";
+            //if (AudioLoop.)
+            this.Output.Text = "Thread Stopped";
         }
 
         private void StopAudio_Tap(object sender, System.Windows.Input.GestureEventArgs e)

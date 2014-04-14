@@ -17,11 +17,6 @@ namespace WASAPI_Cpp
 		WASAPI();
 		virtual ~WASAPI();
 
-		// WASAPI functions
-
-		void audioBufferHandler();
-
-
 		// Threading functions
 		void startThread();
 		void stopThread();
@@ -43,8 +38,9 @@ namespace WASAPI_Cpp
 
 
 		WAVEFORMATEX *inputFormat;
+
 		HANDLE audioInEvent;
-		HANDLE audioOutEvent;
+		//HANDLE audioOutEvent;
 
 
 		// The handle that will refer to the thread we will create

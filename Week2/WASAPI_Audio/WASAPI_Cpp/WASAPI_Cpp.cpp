@@ -1,6 +1,8 @@
 ﻿// WASAPI_Cpp.cpp
 #include "pch.h"
 #include "WASAPI_Cpp.h"
+#include <audioclient.h>
+#include <phoneaudioclient.h>
 
 using namespace WASAPI_Cpp;
 using namespace Platform;
@@ -12,13 +14,14 @@ using namespace Windows::System::Threading;
 WASAPI::WASAPI()
 {
 	// Initialize variables to null values
-	this->threadHandle = nullptr;
+	/*this->threadHandle = nullptr;
 	this->inputDevice = nullptr;
 	this->outputDevice = nullptr;
 	this->inputClient = nullptr;
 	this->outputClient = nullptr;
 	this->inputFormat = nullptr;
 	this->audioInEvent = nullptr;
+	*/
 
 	Init_Capture();
 	Init_Render();
@@ -63,17 +66,40 @@ void WASAPI::stopThread()
 
 
 void WASAPI::thread(IAsyncAction^ operation) {
+	unsigned char *rawData;
+	unsigned int numSamples;
+	unsigned long flags;
+
+	unsigned int padding = 0;
+	unsigned int allocatedBufferSize;
+
+	unsigned char *rawDataOut;
 
 	// Keep looping as long as the threadHandle doesn't think we've been canceled
 	while (this->threadHandle->Status != AsyncStatus::Canceled) {
 		// Sleep until audioInEvent is triggered
 		if (WaitForSingleObjectEx(audioInEvent, INFINITE, FALSE) == WAIT_OBJECT_0)
 		{
-			audioBufferHandler();
+			inputClient->GetBuffer(&rawData, &numSamples, &flags, NULL, NULL);
+
+			outputDevice->GetCurrentPadding(&padding);
+			outputDevice->GetBufferSize(&allocatedBufferSize);
+
+
+			if (padding != allocatedBufferSize)
+			{
+				outputClient->GetBuffer(numSamples, (unsigned char**)&rawDataOut);
+				for (unsigned int i = 0; i < numSamples; ++i)
+				{
+					rawDataOut[i] = rawData[i];
+
+				}
+			}
+
+			outputClient->ReleaseBuffer(numSamples, 0);
+			inputClient->ReleaseBuffer(numSamples);
 		}
-
 	}
-
 	// Once we've been canceled, clean up the threadHandle resources
 	this->threadHandle->Close();
 	this->threadHandle = nullptr;
@@ -84,37 +110,8 @@ void WASAPI::thread(IAsyncAction^ operation) {
 ///   WASAPI Functions  ///
 ///////////////////////////
 
-void WASAPI::audioBufferHandler()
-{
-	unsigned char *rawData;
-	unsigned int numSamples;
-	unsigned long flags;
-
-	unsigned int padding = 0;
-	unsigned int allocatedBufferSize;
-
-	unsigned char *rawDataOut;
-
-	inputClient->GetBuffer(&rawData, &numSamples, &flags, NULL, NULL);
-
-	outputDevice->GetCurrentPadding(&padding);
-	outputDevice->GetBufferSize(&allocatedBufferSize);
 
 
-	if (padding != allocatedBufferSize)
-	{
-		outputClient->GetBuffer(numSamples, (unsigned char**)&rawDataOut);
-		for (unsigned int i = 0; i < numSamples; i++)
-		{
-			rawDataOut[i * 2] = rawData[i];
-			rawDataOut[2 * i + 1] = rawData[i];
-		}
-	}
-
-	outputClient->ReleaseBuffer(numSamples, 0);
-	inputClient->ReleaseBuffer(numSamples);
-
-}
 HRESULT WASAPI::Init_Capture()
 {
 	HRESULT hr = E_FAIL;
@@ -139,14 +136,17 @@ HRESULT WASAPI::Init_Capture()
 		hr = inputDevice->GetMixFormat(&inputFormat);
 	}
 
+
 	if (SUCCEEDED(hr))
 	{
 		// enable event driven handling of audio stream
-		unsigned int flags = AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+		auto flags = AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+
 		// enable sharing of audio endpoint device with clients in other processes
-		unsigned int mode = AUDCLNT_SHAREMODE_SHARED;
-		// Initialize audio stream between client and device
-		hr = inputDevice->Initialize(AUDCLNT_SHAREMODE_SHARED, flags, 0, 0, inputFormat, NULL);
+		auto mode = AUDCLNT_SHAREMODE_SHARED;
+		
+		// Initialize input device
+		hr = inputDevice->Initialize(mode, flags, 0, 0, inputFormat, NULL);
 	}
 
 	if (SUCCEEDED(hr))
@@ -198,13 +198,7 @@ HRESULT WASAPI::Init_Render()
 		hr = outputDevice->GetService(__uuidof(IAudioRenderClient), (void**)&outputClient);
 	}
 
-	if (SUCCEEDED(hr))
-	{
-		// create and set the event handler which is called when the input buffer is ready for processing
-		audioOutEvent = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
-		hr = outputDevice->SetEventHandle(audioOutEvent);
-	}
-
+	
 	return hr;
 }
 
