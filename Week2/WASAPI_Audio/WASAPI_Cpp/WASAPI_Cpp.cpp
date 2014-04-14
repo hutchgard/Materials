@@ -20,8 +20,8 @@ WASAPI::WASAPI()
 	this->inputFormat = nullptr;
 	this->audioInEvent = nullptr;
 
-	//Init_Capture();
-	//Init_Render();
+	Init_Capture();
+	Init_Render();
 
 }
 
@@ -36,27 +36,29 @@ WASAPI::~WASAPI()
 //  Threading Functions  //
 ///////////////////////////
 
-void WASAPI::startThread() {
-	HRESULT hr = E_FAIL;
-
+void WASAPI::startThread()
+{
+	
 	// Only start a new thread if we don't already have one running
-	if (this->threadHandle == nullptr){
-		hr = Init_Capture();
-		if (SUCCEEDED(hr))
-		{
-			hr = Init_Render();
-		}
-		if (SUCCEEDED(hr))
-		{
-			this->threadHandle = ThreadPool::RunAsync(ref new WorkItemHandler(this, &WASAPI::thread));
-		}
+	if (this->threadHandle == nullptr)
+	{
+		this->threadHandle = ThreadPool::RunAsync(ref new WorkItemHandler(this, &WASAPI::thread));
+		inputDevice->Start();
+		outputDevice->Start();
+	
 	}
 }
 
-void WASAPI::stopThread() {
+void WASAPI::stopThread()
+{
 	// Only stop a thread if we DO have one running
 	if (this->threadHandle != nullptr)
+	{
 		this->threadHandle->Cancel();
+		inputDevice->Stop();
+		outputDevice->Stop();
+	}
+		
 }
 
 
@@ -67,7 +69,7 @@ void WASAPI::thread(IAsyncAction^ operation) {
 		// Sleep until audioInEvent is triggered
 		if (WaitForSingleObjectEx(audioInEvent, INFINITE, FALSE) == WAIT_OBJECT_0)
 		{
-			inputBufferHandler();
+			audioBufferHandler();
 		}
 
 	}
@@ -82,18 +84,37 @@ void WASAPI::thread(IAsyncAction^ operation) {
 ///   WASAPI Functions  ///
 ///////////////////////////
 
-void WASAPI::inputBufferHandler()
+void WASAPI::audioBufferHandler()
 {
 	unsigned char *rawData;
 	unsigned int numSamples;
 	unsigned long flags;
 
+	unsigned int padding = 0;
+	unsigned int allocatedBufferSize;
+
+	unsigned char *rawDataOut;
+
 	inputClient->GetBuffer(&rawData, &numSamples, &flags, NULL, NULL);
+
+	outputDevice->GetCurrentPadding(&padding);
+	outputDevice->GetBufferSize(&allocatedBufferSize);
+
+
+	if (padding != allocatedBufferSize)
+	{
+		outputClient->GetBuffer(numSamples, (unsigned char**)&rawDataOut);
+		for (unsigned int i = 0; i < numSamples; i++)
+		{
+			rawDataOut[i * 2] = rawData[i];
+			rawDataOut[2 * i + 1] = rawData[i];
+		}
+	}
+
+	outputClient->ReleaseBuffer(numSamples, 0);
 	inputClient->ReleaseBuffer(numSamples);
 
 }
-
-
 HRESULT WASAPI::Init_Capture()
 {
 	HRESULT hr = E_FAIL;
@@ -142,16 +163,6 @@ HRESULT WASAPI::Init_Capture()
 		hr = inputDevice->SetEventHandle(audioInEvent);
 	}
 
-	if (SUCCEEDED(hr))
-	{
-		hr = inputDevice->Start();
-	}
-
-	if (deviceID)
-	{
-		CoTaskMemFree((LPVOID)deviceID);
-	}
-
 	return hr;
 }
 
@@ -193,17 +204,6 @@ HRESULT WASAPI::Init_Render()
 		audioOutEvent = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
 		hr = outputDevice->SetEventHandle(audioOutEvent);
 	}
-
-	if (SUCCEEDED(hr))
-	{
-		hr = outputDevice->Start();
-	}
-
-	if (renderId)
-	{
-		CoTaskMemFree((LPVOID)renderId);
-	}
-
 
 	return hr;
 }

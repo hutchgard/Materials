@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <include/fftw3.h>
 #include <synchapi.h>
 #include <audioclient.h>
 #include <phoneaudioclient.h>
@@ -18,7 +19,7 @@ namespace WASAPI_Cpp
 
 		// WASAPI functions
 
-		void inputBufferHandler();
+		void audioBufferHandler();
 
 
 		// Threading functions
@@ -52,5 +53,43 @@ namespace WASAPI_Cpp
 	};
 
 
+	// Note, this is a PURE C++ class!  It cannot be called from C#, all that has to happen through the wrapper class below!
+	class FFTW
+	{
+	private:
+		// Internally managed buffers
+		float * inputBuffer;
+		fftwf_complex * outputBuffer;
+
+		// Length of buffers
+		unsigned int N;
+
+		// The fftw plan we generate in the constructor
+		fftwf_plan plan;
+	public:
+		// Creates an FFTW object tuned for a certain length buffer
+		FFTW(unsigned int N);
+
+		// Cleanup the internal buffers allocated
+		~FFTW();
+
+		// Returns Fourier transform of input.  Because input is real, we
+		// exploit the Hermitian Symmetry property of the FT of a real input,
+		// omitting the negative frequencies. Practically,this means that if
+		// the input is of length N, the output will be of length (N/2) + 1
+		fftwf_complex * fft(float * input);
+	};
+
+
+	class CSharpBridge
+	{
+	public:
+		// Constructor
+		CSharpBridge();
+
+		// Take the fourier transform of random data of length N, return average magnitude
+		// Note: This is a pretty useless operation, this is just to demonstrate how to use FFTW
+		float loudestFrequency(unsigned int N);
+	};
 
 }

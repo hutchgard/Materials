@@ -31,11 +31,13 @@ namespace WASAPI_Audio
         private void StartAudio_Tap(object sender, System.Windows.Input.GestureEventArgs e)
         {
             AudioLoop.startThread();
+            this.Output.Text = "Thread Started";
         }
 
         private void StopAudio_Tap(object sender, System.Windows.Input.GestureEventArgs e)
         {
             AudioLoop.stopThread();
+            this.Output.Text = "Thread Stopped";
         }
     }
 }

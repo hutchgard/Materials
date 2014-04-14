@@ -9,6 +9,7 @@
   <ItemGroup>
     <ClCompile Include="WASAPI_Cpp.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="CSharpBridge.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WASAPI_Cpp.h" />
